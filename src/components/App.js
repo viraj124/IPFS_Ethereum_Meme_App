@@ -3,6 +3,8 @@ import logo from '../logo.png';
 import './App.css';
 import MemeContract from '../abis/MemeContract.json';
 import Web3 from 'web3';
+import Arweave from 'arweave/web';
+
 
 const ipfsClient = require('ipfs-http-client');
 var ipfs = ipfsClient({ host: 'ipfs.infura.io', port: 5001, protocol: 'https' })
@@ -14,15 +16,13 @@ constructor(props) {
   super(props);
   this.state = {
     buffer : null,
-    account: '',
-    contract: '',
-    memeHash : 'QmQ86gLytagjVk7gDEvU98nx1vPiPjmjtYEnh148fN6cRS'
+    account: 'I1XTvtxSWQtNmL9vdsOYgppkXaRm6d0nP04fL7s0-SE',
+    memeHash : ''
   };
 }
 
 async componentWillMount() {
-  await this.loadWeb3();
-  await this.integrateSmartContract()
+  await this.setupArweaveClient()
 }
 
   captureFile = (event) => {
@@ -35,51 +35,31 @@ async componentWillMount() {
     }
   }
 
-  async integrateSmartContract() {
-   const web3 = window.web3
-   const accounts = await web3.eth.getAccounts()
-   console.log(accounts[0])
-   this.setState({account: accounts[0]})
-   const networkId = await web3.eth.net.getId()
-   const nwData = MemeContract.networks[networkId]
-   if (nwData) {
-     const abi = MemeContract.abi
-     const address = nwData.address
-     const contract = web3.eth.Contract(abi, address)
-     this.setState({contract: contract})
-     const memeHash = await contract.methods.get().call()
-     this.setState({memeHash})
-   } else {
-     window.alert("Contract Not Deployed!")
-   }
-   console.log(networkId)
+  setupArweaveClient() {
+    const arweave = Arweave.init();
+    this.setState({ arweave })
   }
 
-  async loadWeb3() {
-    //getting linked with metamask wallet
-    if (window.ethereum) {
-      window.web3 = new Web3(window.ethereum)
-      await window.ethereum.enable()
-    } else if (window.web3) {
-     window.web3 = new Web3(window.web3.currentProvider)
-    } else {
-      window.alert("Please Use Metamask!")
-    }
-  }
 
   onSubmit = (event) => {
     event.preventDefault();
     console.log('submitted');
     ipfs.add(this.state.buffer, (error, result) => {
        console.log('IPFS Result', result)
-         var memeHash = result[0].hash;
+         var hash = result[0].hash;
        if (error) {
          console.log(error);
          return;
        }
-       this.state.contract.methods.set(memeHash).send({from : this.state.account}).then((r) =>{
-             return this.setState({memeHash})
-       })
+       let key = await this.state.arweave.wallets.generate()
+       let transaction = await arweave.createTransaction({
+        data: '<html><head><meta charset="UTF-8"><title>IPFS Data Bridge</title></head><body></body></html>',
+    }, key);
+       transaction.addTag("IPFS-Add", hash)
+       console.log(transaction)
+       await arweave.transactions.sign(transaction, key);
+       const response = await arweave.transactions.post(transaction);
+       console.log(response.status);
     })
   }
   render() {
