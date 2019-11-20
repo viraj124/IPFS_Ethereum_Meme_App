@@ -16,7 +16,7 @@ constructor(props) {
   super(props);
   this.state = {
     buffer : null,
-    account: 'I1XTvtxSWQtNmL9vdsOYgppkXaRm6d0nP04fL7s0-SE',
+    address: '',
     memeHash : ''
   };
 }
@@ -35,13 +35,39 @@ async componentWillMount() {
     }
   }
 
-  setupArweaveClient() {
+  getwallet = (event) => {
+    event.preventDefault()
+    let wallet
+    const fileReader = new FileReader();
+    fileReader.onload = async (e) => {
+      wallet = JSON.parse(e.target.result);
+      console.log(wallet)
+      const address = await this.state.arweave.wallets.jwkToAddress(wallet)
+      console.log(await this.state.arweave.wallets.getBalance(address))
+      this.setState({ wallet })
+      this.setState({ address })
+    }
+    fileReader.readAsText(event.target.files[0]);
+  }
+
+  async setupArweaveClient() {
     const arweave = Arweave.init();
     this.setState({ arweave })
   }
 
+  async setuptransaction(hash) {
+    let transaction = await this.state.arweave.createTransaction({
+      data: '<html><head><meta charset="UTF-8"><title>IPFS Data Bridge</title></head><body></body></html>',
+  }, this.state.wallet);
+     
+     transaction.addTag('IPFS-Add', hash);
+     this.state.arweave.transactions.sign(transaction, this.state.wallet);
+     const response = this.state.arweave.transactions.post(transaction);
+     console.log(response.status);
+  }
 
-  onSubmit = (event) => {
+
+   onSubmit =  event => {
     event.preventDefault();
     console.log('submitted');
     ipfs.add(this.state.buffer, (error, result) => {
@@ -51,15 +77,7 @@ async componentWillMount() {
          console.log(error);
          return;
        }
-       let key = await this.state.arweave.wallets.generate()
-       let transaction = await arweave.createTransaction({
-        data: '<html><head><meta charset="UTF-8"><title>IPFS Data Bridge</title></head><body></body></html>',
-    }, key);
-       transaction.addTag("IPFS-Add", hash)
-       console.log(transaction)
-       await arweave.transactions.sign(transaction, key);
-       const response = await arweave.transactions.post(transaction);
-       console.log(response.status);
+       this.setuptransaction(hash)
     })
   }
   render() {
@@ -90,6 +108,7 @@ async componentWillMount() {
                 <h2>Change Meme</h2>
                 <form onSubmit = {this.onSubmit}>
                   <input type ="file" onChange = { this.captureFile }/>
+                  <input type ="file" onChange = { this.getwallet }/>
                   <input type = "submit" />
                   </form>
               </div>
