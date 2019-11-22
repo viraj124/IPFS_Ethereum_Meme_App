@@ -17,7 +17,8 @@ constructor(props) {
   this.state = {
     buffer : null,
     address: '',
-    memeHash : ''
+    memeHash : '',
+    result : []
   };
 }
 
@@ -61,9 +62,13 @@ async componentWillMount() {
   }, this.state.wallet);
      
      transaction.addTag('IPFS-Add', hash);
-     this.state.arweave.transactions.sign(transaction, this.state.wallet);
-     const response = this.state.arweave.transactions.post(transaction);
-     console.log(response.status);
+     await this.state.arweave.transactions.sign(transaction, this.state.wallet);
+     const response = await this.state.arweave.transactions.post(transaction);
+     this.setState({ result: JSON.parse(response.config.data)})
+     console.log(this.state.result.id)
+     const resulttx = this.state.arweave.transactions.get(this.state.result.id).then(result => {
+     console.log(JSON.parse(result));
+     });
   }
 
 
